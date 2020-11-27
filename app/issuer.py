@@ -13,7 +13,7 @@ import threading
 
 logging.basicConfig(level=logging.DEBUG)
 
-WORK_DIR = os.getcwd()
+WORK_DIR = "/ca_files"
 
 # Files variables
 PATH_PRIVATE = os.path.join(WORK_DIR, "CA/")
@@ -173,4 +173,4 @@ def sign_cert():
 
     return output.decode("ascii")
 
-app.run(host="0.0.0.0", port=8081, debug=True, ssl_context=context, use_reloader=False)
+app.run(host="0.0.0.0", ssl_context=context, use_reloader=False)
