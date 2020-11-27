@@ -2,6 +2,7 @@ from cryptography                              import x509
 from cryptography.x509.oid                     import NameOID
 from cryptography.hazmat.primitives            import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from ipaddress                                 import IPv4Address
 
 from flask import abort, Flask, request
 
@@ -104,8 +105,11 @@ if not os.path.isfile(RSA_CERT_PATH):
                   .public_key(PRIV_KEY.public_key()) \
                   .serial_number(x509.random_serial_number()) \
                   .not_valid_before(datetime.datetime.utcnow()) \
-                  .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=CA_VALIDITY)) \
+                  .not_valid_after(datetime.datetime.utcnow() + \
+                                   datetime.timedelta(days=CA_VALIDITY)) \
                   .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True) \
+                  .add_extension(x509.SubjectAlternativeName([x509.DNSName("ca"),
+                                                              x509.IPAddress(IPv4Address("10.45.0.5"))]), critical=True) \
                   .sign(PRIV_KEY, hashes.SHA256())
 
     # Save certificate
@@ -144,7 +148,7 @@ def sign_cert():
 
     # Check if has organization name
     org = csr.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME)[0].value
-    if org == None:
+    if org is None:
         abort(415)
 
     # Sign
@@ -172,5 +176,27 @@ def sign_cert():
             f.write(output)
 
     return output.decode("ascii")
+
+@app.route("/CACert", methods=["GET"])
+def get_cacert():
+    """
+    Get the CA Certificate
+    """
+    return CA_CERT.public_bytes(serialization.Encoding.PEM).decode("ascii")
+
+@app.route("/cert/<org>", methods=["GET"])
+def get_cert(org):
+    """
+    Get an organization's certificate
+    org - the name of the organization
+    """
+    try:
+        output: x509.Certificate
+        with open(os.path.join(PATH_SIGNED, org + ".cert"), "rb") as f:
+            output = x509.load_pem_x509_certificate(f.read())
+
+        return output.public_bytes(serialization.Encoding.PEM).decode("ascii")
+    except OSError:
+        abort(404)
 
 app.run(host="0.0.0.0", ssl_context=context, use_reloader=False)
